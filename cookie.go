@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
-	"strings"
 )
 
 func bindCookies(r *http.Request, out any) error {
@@ -33,24 +32,8 @@ func bindCookies(r *http.Request, out any) error {
 			continue
 		}
 
-		name, opts := parseTag(tag)
-		if name == "" {
-			name = strings.ToLower(field.Name)
-		}
-
-		value, ok := cookies[name]
-		if !ok || value == "" {
-			if dv, dOk := opts["default"]; dOk {
-				value = dv
-			} else if _, rOk := opts["required"]; rOk {
-				return &EmptyFieldError{Key: name, Source: "cookie"}
-			}
-		}
-
-		if value != "" && fieldValue.CanSet() {
-			if err := setField(fieldValue, value); err != nil {
-				return fmt.Errorf("%s cookie: %w", name, err)
-			}
+		if err := bindCookieField(field, fieldValue, tag, cookies); err != nil {
+			return err
 		}
 	}
 

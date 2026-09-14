@@ -48,8 +48,7 @@ func bindQuery(r *http.Request, out any) error {
 		}
 
 		if err := setByPath(outVal, finfo.path, vals); err != nil {
-			var ce *ConversionError
-			if errors.As(err, &ce) {
+			if _, ok := errors.AsType[*ConversionError](err); ok {
 				multiErr.Errors[key] = err
 			} else {
 				return err
@@ -121,8 +120,8 @@ type fieldInfo struct {
 func collectFields(t reflect.Type, prefix string) map[string]*fieldInfo {
 	fields := make(map[string]*fieldInfo)
 
-	for i := range t.NumField() {
-		f := t.Field(i)
+	for f := range t.Fields() {
+		f := f
 
 		if !f.IsExported() {
 			continue
@@ -318,5 +317,5 @@ func splitCommaValues(values []string) []string {
 // ─── TextUnmarshaler Check ──────────────────────────────────────────────────
 
 func implementsTextUnmarshaler(t reflect.Type) bool {
-	return t.Implements(reflect.TypeOf((*encoding.TextUnmarshaler)(nil)).Elem())
+	return t.Implements(reflect.TypeFor[encoding.TextUnmarshaler]())
 }

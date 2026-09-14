@@ -14,7 +14,7 @@ func setField(field reflect.Value, value string) error {
 	}
 
 	switch field.Kind() {
-	case reflect.Ptr:
+	case reflect.Pointer:
 		if field.IsNil() {
 			field.Set(reflect.New(field.Type().Elem()))
 		}
@@ -40,7 +40,7 @@ func setField(field reflect.Value, value string) error {
 func setByPath(root reflect.Value, path []int, values []string) error {
 	field := root.FieldByIndex(path)
 
-	if field.Kind() == reflect.Ptr {
+	if field.Kind() == reflect.Pointer {
 		return setPtrField(field, values)
 	}
 
@@ -69,7 +69,7 @@ func setPtrField(field reflect.Value, values []string) error {
 
 func setSliceField(field reflect.Value, values []string) error {
 	elemType := field.Type().Elem()
-	if elemType.Kind() == reflect.Ptr {
+	if elemType.Kind() == reflect.Pointer {
 		elemType = elemType.Elem()
 	}
 
@@ -89,7 +89,7 @@ func setSliceField(field reflect.Value, values []string) error {
 	slice := reflect.MakeSlice(field.Type(), len(values), len(values))
 	for i, val := range values {
 		elem := slice.Index(i)
-		if elem.Kind() == reflect.Ptr {
+		if elem.Kind() == reflect.Pointer {
 			if val == "" {
 				continue
 			}
@@ -175,7 +175,7 @@ func parseIndex(s string) int {
 func setDefaultByPath(root reflect.Value, path []int, defaultValue string, fieldType reflect.Type) error {
 	field := root.FieldByIndex(path)
 
-	if field.Kind() == reflect.Ptr {
+	if field.Kind() == reflect.Pointer {
 		if field.IsNil() {
 			field.Set(reflect.New(field.Type().Elem()))
 		}

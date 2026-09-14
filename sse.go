@@ -17,28 +17,14 @@ func GHforSSE[Req any, Data any](
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		req := new(Req)
+		reqVal := reflectValue(req)
 
-		if err := bindURIFromRequest(r, req); err != nil {
+		if err := bindAll(r, reqVal); err != nil {
 			writeError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
 		if err := parseBody(r, req); err != nil {
-			writeError(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		if err := bindHeaders(r, req); err != nil {
-			writeError(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		if err := bindQuery(r, req); err != nil {
-			writeError(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		if err := bindCookies(r, req); err != nil {
 			writeError(w, err.Error(), http.StatusBadRequest)
 			return
 		}

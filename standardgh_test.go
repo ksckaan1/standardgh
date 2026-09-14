@@ -2542,7 +2542,7 @@ func TestValidateStructWithBindingFails(t *testing.T) {
 
 func TestEncodeResponseHeaders(t *testing.T) {
 	type Response struct {
-		CustomID string `header:"X-Custom-ID"`
+		CustomID  string `header:"X-Custom-ID"`
 		RequestID string `header:"X-Request-ID"`
 	}
 
@@ -3228,7 +3228,7 @@ func TestEncodeResponseGHHandler(t *testing.T) {
 	}
 
 	type Response struct {
-		Message string `json:"message"`
+		Message  string `json:"message"`
 		CustomID string `header:"X-Custom-ID"`
 	}
 
@@ -3336,10 +3336,10 @@ func TestGHforSSESendEvents(t *testing.T) {
 		t.Error("expected body to contain 'bye john'")
 	}
 
-	lines := strings.Split(body, "\n")
-	for _, line := range lines {
-		if strings.HasPrefix(line, "id: ") {
-			idStr := strings.TrimPrefix(line, "id: ")
+	lines := strings.SplitSeq(body, "\n")
+	for line := range lines {
+		if after, ok := strings.CutPrefix(line, "id: "); ok {
+			idStr := after
 			if _, err := uuid.Parse(idStr); err != nil {
 				t.Errorf("expected valid UUID v7, got %s", idStr)
 			}

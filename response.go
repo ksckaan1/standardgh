@@ -41,7 +41,7 @@ func encodeResponseHeaders(w http.ResponseWriter, resp any) error {
 		}
 
 		// Handle pointer fields
-		if fieldValue.Kind() == reflect.Ptr {
+		if fieldValue.Kind() == reflect.Pointer {
 			if fieldValue.IsNil() {
 				continue
 			}
@@ -90,7 +90,7 @@ func parseCookieTag(tag string, field reflect.StructField, fieldValue reflect.Va
 	}
 
 	// Handle pointer fields
-	if fieldValue.Kind() == reflect.Ptr {
+	if fieldValue.Kind() == reflect.Pointer {
 		if fieldValue.IsNil() {
 			return nil, nil
 		}
@@ -124,11 +124,11 @@ func parseCookieTag(tag string, field reflect.StructField, fieldValue reflect.Va
 	if matches := cookieClearRegex.FindStringSubmatch(tag); len(matches) == 2 {
 		name := matches[1]
 		cookie := &http.Cookie{
-			Name:   name,
-			Value:  value,
-			Path:   "/",
+			Name:    name,
+			Value:   value,
+			Path:    "/",
 			Expires: time.Unix(0, 0),
-			MaxAge: -1,
+			MaxAge:  -1,
 		}
 
 		applyCookieAttributes(cookie, field)
