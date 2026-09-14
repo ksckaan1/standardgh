@@ -14,6 +14,11 @@ func GH[Req any, Res any](handlerFunc func(context.Context, *Req) (Res, int, err
 	return func(w http.ResponseWriter, r *http.Request) {
 		req := new(Req)
 
+		if err := bindURIFromRequest(r, req); err != nil {
+			writeError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
 		if err := parseBody(r, req); err != nil {
 			writeError(w, err.Error(), http.StatusBadRequest)
 			return

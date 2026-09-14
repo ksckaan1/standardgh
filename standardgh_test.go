@@ -1154,3 +1154,361 @@ func TestBindQueryStringTextUnmarshaler(t *testing.T) {
 		t.Errorf("expected Name to be john, got %s", result.Name)
 	}
 }
+
+// URI binding tests
+
+func TestBindURIValues(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/user/12345", nil)
+	req.SetPathValue("id", "12345")
+
+	result := new(struct {
+		ID string `uri:"id"`
+	})
+	err := bindURIFromRequest(req, result)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result.ID != "12345" {
+		t.Errorf("expected ID to be 12345, got %s", result.ID)
+	}
+}
+
+func TestBindURIMultipleParams(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/user/123/posts/456", nil)
+	req.SetPathValue("userId", "123")
+	req.SetPathValue("postId", "456")
+
+	result := new(struct {
+		UserID string `uri:"userId"`
+		PostID string `uri:"postId"`
+	})
+	err := bindURIFromRequest(req, result)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result.UserID != "123" {
+		t.Errorf("expected UserID to be 123, got %s", result.UserID)
+	}
+
+	if result.PostID != "456" {
+		t.Errorf("expected PostID to be 456, got %s", result.PostID)
+	}
+}
+
+func TestBindURIInt(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/user/42", nil)
+	req.SetPathValue("id", "42")
+
+	result := new(struct {
+		ID int `uri:"id"`
+	})
+	err := bindURIFromRequest(req, result)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result.ID != 42 {
+		t.Errorf("expected ID to be 42, got %d", result.ID)
+	}
+}
+
+func TestBindURIInt64(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/user/1234567890", nil)
+	req.SetPathValue("id", "1234567890")
+
+	result := new(struct {
+		ID int64 `uri:"id"`
+	})
+	err := bindURIFromRequest(req, result)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result.ID != 1234567890 {
+		t.Errorf("expected ID to be 1234567890, got %d", result.ID)
+	}
+}
+
+func TestBindURIUint(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/user/123", nil)
+	req.SetPathValue("id", "123")
+
+	result := new(struct {
+		ID uint `uri:"id"`
+	})
+	err := bindURIFromRequest(req, result)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result.ID != 123 {
+		t.Errorf("expected ID to be 123, got %d", result.ID)
+	}
+}
+
+func TestBindURIFloat64(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/score/3.14", nil)
+	req.SetPathValue("score", "3.14")
+
+	result := new(struct {
+		Score float64 `uri:"score"`
+	})
+	err := bindURIFromRequest(req, result)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result.Score != 3.14 {
+		t.Errorf("expected Score to be 3.14, got %f", result.Score)
+	}
+}
+
+func TestBindURIBool(t *testing.T) {
+	tests := []struct {
+		name     string
+		value    string
+		expected bool
+	}{
+		{"true", "true", true},
+		{"false", "false", false},
+		{"1", "1", true},
+		{"0", "0", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/flag/"+tt.value, nil)
+			req.SetPathValue("active", tt.value)
+
+			result := new(struct {
+				Active bool `uri:"active"`
+			})
+			err := bindURIFromRequest(req, result)
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if result.Active != tt.expected {
+				t.Errorf("expected Active to be %v, got %v", tt.expected, result.Active)
+			}
+		})
+	}
+}
+
+func TestBindURIRequired(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+
+	result := new(struct {
+		ID string `uri:"id,required"`
+	})
+	err := bindURIFromRequest(req, result)
+
+	if err == nil {
+		t.Fatal("expected error for missing required URI param")
+	}
+
+	expected := "id uri is required"
+	if err.Error() != expected {
+		t.Errorf("expected error %q, got %q", expected, err.Error())
+	}
+}
+
+func TestBindURIRequiredWithParam(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/user/123", nil)
+	req.SetPathValue("id", "123")
+
+	result := new(struct {
+		ID string `uri:"id,required"`
+	})
+	err := bindURIFromRequest(req, result)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result.ID != "123" {
+		t.Errorf("expected ID to be 123, got %s", result.ID)
+	}
+}
+
+func TestBindURIDefault(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+
+	result := new(struct {
+		ID string `uri:"id,default:default-id"`
+	})
+	err := bindURIFromRequest(req, result)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result.ID != "default-id" {
+		t.Errorf("expected ID to be default-id, got %s", result.ID)
+	}
+}
+
+func TestBindURIDefaultOverride(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/user/123", nil)
+	req.SetPathValue("id", "123")
+
+	result := new(struct {
+		ID string `uri:"id,default:default-id"`
+	})
+	err := bindURIFromRequest(req, result)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result.ID != "123" {
+		t.Errorf("expected ID to be 123, got %s", result.ID)
+	}
+}
+
+func TestBindURINilPointer(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/user/123", nil)
+
+	err := bindURIFromRequest(req, nil)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestBindURINonStruct(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/user/123", nil)
+
+	var result string
+	err := bindURIFromRequest(req, &result)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestBindURIInvalidInt(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/user/not-a-number", nil)
+	req.SetPathValue("id", "not-a-number")
+
+	result := new(struct {
+		ID int `uri:"id"`
+	})
+	err := bindURIFromRequest(req, result)
+
+	if err == nil {
+		t.Fatal("expected error for invalid int value")
+	}
+}
+
+func TestBindURISimple(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/user/123", nil)
+	req.SetPathValue("id", "123")
+
+	result := new(struct {
+		ID string `uri:"id"`
+	})
+	err := bindURIFromRequest(req, result)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result.ID != "123" {
+		t.Errorf("expected ID to be 123, got %s", result.ID)
+	}
+}
+
+func TestBindURIFromParams(t *testing.T) {
+	params := map[string]string{
+		"id":   "123",
+		"name": "john",
+	}
+
+	result := new(struct {
+		ID   string `uri:"id"`
+		Name string `uri:"name"`
+	})
+	err := bindURIFromParams(params, result)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result.ID != "123" {
+		t.Errorf("expected ID to be 123, got %s", result.ID)
+	}
+
+	if result.Name != "john" {
+		t.Errorf("expected Name to be john, got %s", result.Name)
+	}
+}
+
+func TestBindURIFromParamsRequired(t *testing.T) {
+	params := map[string]string{}
+
+	result := new(struct {
+		ID string `uri:"id,required"`
+	})
+	err := bindURIFromParams(params, result)
+
+	if err == nil {
+		t.Fatal("expected error for missing required URI param")
+	}
+
+	expected := "id uri is required"
+	if err.Error() != expected {
+		t.Errorf("expected error %q, got %q", expected, err.Error())
+	}
+}
+
+func TestBindURICurlyBraceSyntax(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/user/123", nil)
+	req.SetPathValue("id", "123")
+
+	result := new(struct {
+		ID string `uri:"id"`
+	})
+	err := bindURIFromRequest(req, result)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result.ID != "123" {
+		t.Errorf("expected ID to be 123, got %s", result.ID)
+	}
+}
+
+func TestBindURICurlyBraceMultipleParams(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/user/123/posts/456", nil)
+	req.SetPathValue("userId", "123")
+	req.SetPathValue("postId", "456")
+
+	result := new(struct {
+		UserID string `uri:"userId"`
+		PostID string `uri:"postId"`
+	})
+	err := bindURIFromRequest(req, result)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result.UserID != "123" {
+		t.Errorf("expected UserID to be 123, got %s", result.UserID)
+	}
+
+	if result.PostID != "456" {
+		t.Errorf("expected PostID to be 456, got %s", result.PostID)
+	}
+}

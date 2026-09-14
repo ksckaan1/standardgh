@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	http.HandleFunc("POST /standard", standardgh.GH(standardHandler))
+	http.HandleFunc("POST /standard/{id}", standardgh.GH(standardHandler))
 
 	fmt.Println("listening")
 	err := http.ListenAndServe(":3030", nil)
