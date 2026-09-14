@@ -104,8 +104,8 @@ import (
 )
 
 type UploadReq struct {
-	Title string                `json:"title"`
-	File  *multipart.FileHeader `json:"file"`
+	Title string                `form:"title"`
+	File  *multipart.FileHeader `form:"file"`
 }
 
 type UploadResp struct {
@@ -160,9 +160,9 @@ type Resp struct {
 
 ### Binding Order
 
-The binding order is: **URI → Body → Header → Query → Cookie → Validate**.
+The binding order is: **URI → Header → Cookie → Query → Body → Validate**.
 
-This means body fields can override URI params if they share the same name, and validation runs after all binding is complete.
+This means URI params are bound first, then headers, cookies, and query params. Body is parsed after all other bindings, and validation runs last.
 
 ### Cookie Tag Options
 
@@ -243,7 +243,7 @@ Binding errors (type conversion, missing required fields, unsupported content ty
 
 ```json
 {
-	"error": "invalid query parameter: age must be an integer"
+	"error": "error converting value for \"age\": strconv.ParseInt: parsing \"abc\": invalid syntax"
 }
 ```
 
