@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
+	"uuid"
 )
 
 type headerTestRequest struct {
@@ -3248,5 +3250,212 @@ func TestEncodeResponseGHHandler(t *testing.T) {
 
 	if w.Header().Get("X-Custom-ID") != "custom-123" {
 		t.Errorf("expected X-Custom-ID to be custom-123, got %s", w.Header().Get("X-Custom-ID"))
+	}
+}
+
+func TestGHforSSEHeaders(t *testing.T) {
+	type Request struct {
+		RoomID string `query:"room"`
+	}
+
+	handler := GHforSSE[Request, string](5*time.Second, func(ctx context.Context, req *Request, send func(name string, data string) error) error {
+		return nil
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/?room=test", nil)
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", w.Code)
+	}
+
+	if w.Header().Get("Content-Type") != "text/event-stream" {
+		t.Errorf("expected Content-Type to be text/event-stream, got %s", w.Header().Get("Content-Type"))
+	}
+
+	if w.Header().Get("Cache-Control") != "no-cache" {
+		t.Errorf("expected Cache-Control to be no-cache, got %s", w.Header().Get("Cache-Control"))
+	}
+
+	if w.Header().Get("Connection") != "keep-alive" {
+		t.Errorf("expected Connection to be keep-alive, got %s", w.Header().Get("Connection"))
+	}
+
+	if w.Header().Get("X-Accel-Buffering") != "no" {
+		t.Errorf("expected X-Accel-Buffering to be no, got %s", w.Header().Get("X-Accel-Buffering"))
+	}
+
+	if w.Header().Get("Retry-After") != "5" {
+		t.Errorf("expected Retry-After to be 5, got %s", w.Header().Get("Retry-After"))
+	}
+}
+
+func TestGHforSSESendEvents(t *testing.T) {
+	type Request struct {
+		Name string `query:"name"`
+	}
+
+	type Event struct {
+		Message string `json:"message"`
+	}
+
+	handler := GHforSSE[Request, Event](5*time.Second, func(ctx context.Context, req *Request, send func(name string, data Event) error) error {
+		if err := send("greeting", Event{Message: "hello " + req.Name}); err != nil {
+			return err
+		}
+
+		if err := send("farewell", Event{Message: "bye " + req.Name}); err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/?name=john", nil)
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	if !strings.Contains(body, "event: greeting") {
+		t.Error("expected body to contain 'event: greeting'")
+	}
+
+	if !strings.Contains(body, "event: farewell") {
+		t.Error("expected body to contain 'event: farewell'")
+	}
+
+	if !strings.Contains(body, "hello john") {
+		t.Error("expected body to contain 'hello john'")
+	}
+
+	if !strings.Contains(body, "bye john") {
+		t.Error("expected body to contain 'bye john'")
+	}
+
+	lines := strings.Split(body, "\n")
+	for _, line := range lines {
+		if strings.HasPrefix(line, "id: ") {
+			idStr := strings.TrimPrefix(line, "id: ")
+			if _, err := uuid.Parse(idStr); err != nil {
+				t.Errorf("expected valid UUID v7, got %s", idStr)
+			}
+		}
+	}
+}
+
+func TestGHforSSEBindError(t *testing.T) {
+	type Request struct {
+		Age int `query:"age"`
+	}
+
+	handler := GHforSSE[Request, string](5*time.Second, func(ctx context.Context, req *Request, send func(name string, data string) error) error {
+		return nil
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/?age=abc", nil)
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d", w.Code)
+	}
+
+	if !strings.Contains(w.Body.String(), "error") {
+		t.Error("expected error response")
+	}
+}
+
+func TestGHforSSERetryDuration(t *testing.T) {
+	type Request struct{}
+
+	handler := GHforSSE[Request, string](10*time.Second, func(ctx context.Context, req *Request, send func(name string, data string) error) error {
+		return nil
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Header().Get("Retry-After") != "10" {
+		t.Errorf("expected Retry-After to be 10, got %s", w.Header().Get("Retry-After"))
+	}
+}
+
+func TestGHforSSENamedEvents(t *testing.T) {
+	type Request struct{}
+
+	type Event struct {
+		Value int `json:"value"`
+	}
+
+	handler := GHforSSE[Request, Event](5*time.Second, func(ctx context.Context, req *Request, send func(name string, data Event) error) error {
+		events := []struct {
+			name string
+			data Event
+		}{
+			{"created", Event{Value: 1}},
+			{"updated", Event{Value: 2}},
+			{"deleted", Event{Value: 3}},
+		}
+
+		for _, e := range events {
+			if err := send(e.name, e.data); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	if !strings.Contains(body, "event: created") {
+		t.Error("expected body to contain 'event: created'")
+	}
+
+	if !strings.Contains(body, "event: updated") {
+		t.Error("expected body to contain 'event: updated'")
+	}
+
+	if !strings.Contains(body, "event: deleted") {
+		t.Error("expected body to contain 'event: deleted'")
+	}
+}
+
+func TestGHforSSEEmptyName(t *testing.T) {
+	type Request struct{}
+
+	type Event struct {
+		Message string `json:"message"`
+	}
+
+	handler := GHforSSE[Request, Event](5*time.Second, func(ctx context.Context, req *Request, send func(name string, data Event) error) error {
+		return send("", Event{Message: "no event name"})
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	if strings.Contains(body, "event:") {
+		t.Error("expected body to not contain 'event:' for unnamed events")
+	}
+
+	if !strings.Contains(body, "data:") {
+		t.Error("expected body to contain 'data:'")
 	}
 }

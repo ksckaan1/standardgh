@@ -247,6 +247,67 @@ Binding errors (type conversion, missing required fields, unsupported content ty
 }
 ```
 
+### `GHforSSE` — Server-Sent Events
+
+`GHforSSE[Req, Data]` provides type-safe SSE with request binding and named events. It accepts a retry duration and a handler that receives the parsed request and a `send` function.
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/ksckaan1/standardgh"
+)
+
+type ChatReq struct {
+	RoomID string `query:"room"`
+}
+
+type ChatEvent struct {
+	Message string `json:"message"`
+}
+
+func chatHandler(ctx context.Context, req *ChatReq, send func(name string, data ChatEvent) error) error {
+	for i := 0; i < 10; i++ {
+		if err := send("message", ChatEvent{Message: fmt.Sprintf("hello %d", i)}); err != nil {
+			return err
+		}
+		time.Sleep(time.Second)
+	}
+	return nil
+}
+
+func main() {
+	http.HandleFunc("/stream", standardgh.GHforSSE(5*time.Second, chatHandler))
+
+	log.Fatal(http.ListenAndServe(":3000", nil))
+}
+```
+
+The handler returns an error to signal abnormal termination (e.g., context cancellation, connection lost). Successful completion returns `nil`.
+
+### SSE Event Format
+
+Each event includes:
+- `event:` — optional event name (omitted if empty)
+- `id:` — UUID v7 (time-ordered, globally unique)
+- `data:` — JSON-serialized payload
+
+```
+event: message
+id: 0192e4c8-8b6a-7c5d-9e0f-1a2b3c4d5e6f
+data: {"message":"hello 0"}
+
+event: message
+id: 0192e4c8-8b6a-7c5d-9e0f-1a2b3c4d5e70
+data: {"message":"hello 1"}
+```
+
 ## License
 
 [MIT](LICENSE)
