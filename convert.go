@@ -14,6 +14,11 @@ func setField(field reflect.Value, value string) error {
 	}
 
 	switch field.Kind() {
+	case reflect.Ptr:
+		if field.IsNil() {
+			field.Set(reflect.New(field.Type().Elem()))
+		}
+		return setField(field.Elem(), value)
 	case reflect.String:
 		field.SetString(value)
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
@@ -214,6 +219,10 @@ func setFloat(field reflect.Value, value string) error {
 }
 
 func setBool(field reflect.Value, value string) error {
+	if value == "on" {
+		field.SetBool(true)
+		return nil
+	}
 	b, err := strconv.ParseBool(value)
 	if err != nil {
 		return err

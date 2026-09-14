@@ -34,9 +34,29 @@ func GH[Req any, Res any](handlerFunc func(context.Context, *Req) (Res, int, err
 			return
 		}
 
+		if err := bindCookies(r, req); err != nil {
+			writeError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		if err := validateStruct(req); err != nil {
+			writeError(w, err.Error(), http.StatusUnprocessableEntity)
+			return
+		}
+
 		res, status, err := handlerFunc(r.Context(), req)
 		if err != nil {
 			writeError(w, err.Error(), status)
+			return
+		}
+
+		if err := encodeResponseHeaders(w, res); err != nil {
+			writeError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		if err := encodeResponseCookies(w, res); err != nil {
+			writeError(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
@@ -65,10 +85,14 @@ func parseBody(r *http.Request, out any) error {
 	contentType := r.Header.Get("Content-Type")
 	isBodyFilled := r.Body != nil && r.ContentLength > 0
 
+	if !isBodyFilled {
+		return nil
+	}
+
 	switch {
-	case contentType == "application/json" && isBodyFilled:
+	case contentType == "application/json":
 		return json.UnmarshalRead(r.Body, out)
-	case strings.HasPrefix(contentType, "multipart/form-data") && isBodyFilled:
+	case strings.HasPrefix(contentType, "multipart/form-data"):
 		if err := r.ParseMultipartForm(1024); err != nil {
 			return err
 		}
